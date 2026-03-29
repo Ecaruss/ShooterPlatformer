@@ -117,12 +117,23 @@ class Player:
 
     def apply_gravity(self):
         self.vel_y += self.gravity
-        self.rect.y += self.vel_y
-        
-        # Проверяем столкновения со всеми платформами
+        # Сохраняем начальное значение on_ground перед перемещением
+        was_on_ground = self.on_ground
         self.on_ground = False
+        self.rect.y += self.vel_y
+
+        # Проверяем столкновения по оси X (до проверки по Y)
         for platform in self.platforms:
-            # Проверяем столкновение по оси Y (сверху или снизу)
+            if self.rect.colliderect(platform):
+                # Если двигаемся вправо и сталкиваемся с левой стороны платформы
+                if self.rect.right > platform.left and self.rect.left < platform.left and self.rect.x < platform.x:
+                    self.rect.right = platform.left
+                # Если двигаемся влево и сталкиваемся с правой стороны платформы
+                elif self.rect.left < platform.right and self.rect.right > platform.right and self.rect.x > platform.x:
+                    self.rect.left = platform.right
+
+        # Проверяем столкновения по оси Y (сверху или снизу)
+        for platform in self.platforms:
             if self.rect.colliderect(platform):
                 # Если двигаемся вниз (падаем) и сталкиваемся сверху платформы
                 if self.vel_y > 0 and self.rect.bottom <= platform.bottom and self.rect.bottom >= platform.top:
@@ -133,6 +144,16 @@ class Player:
                 elif self.vel_y < 0 and self.rect.top >= platform.top and self.rect.top <= platform.bottom:
                     self.rect.top = platform.bottom
                     self.vel_y = 0
+
+        # Если игрок не касался земли до перемещения и после перемещения находится на земле, 
+        # убедиться, что он действительно на земле
+        if not was_on_ground and self.on_ground:
+            self.on_ground = True
+
+        # Если игрок не касался земли до перемещения и после перемещения находится на земле, 
+        # убедиться, что он действительно на земле
+        if not was_on_ground and self.on_ground:
+            self.on_ground = True
 
     def reset_if_fallen(self):
         """Возвращает игрока в начальную позицию, если он упал ниже основной платформы"""
@@ -147,10 +168,10 @@ class Player:
 
 def create_level():
     """Создает уровень с основной платформой и дополнительными платформами"""
-    # Основная платформа (расширена в 9 раз по ширине и в 10 раз по высоте)
-    main_platform_width = SCREEN_WIDTH * 9  # Расширена в 9 раз (в 3 раза больше предыдущей версии)
+    # Основная платформа (расширена в 6 раз по ширине и в 10 раз по высоте)
+    main_platform_width = SCREEN_WIDTH * 6  # Расширена в 6 раз
     main_platform_height = 50 * 10         # Расширена в 10 раз
-    main_platform = pygame.Rect(-main_platform_width//3, SCREEN_HEIGHT - 50, main_platform_width, main_platform_height)
+    main_platform = pygame.Rect(-main_platform_width//2, SCREEN_HEIGHT - 50, main_platform_width, main_platform_height)
     
     # Высокие бортики по краям основной платформы
     wall_height = 300  # Высота бортиков
