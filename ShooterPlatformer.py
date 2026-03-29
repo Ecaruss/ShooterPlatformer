@@ -92,17 +92,18 @@ class Enemy:
         pygame.draw.rect(surface, COLOR_ENEMY, adjusted_rect)
 
 class Player:
-    def __init__(self, platforms):
+    def __init__(self, platforms, start_platform):
         self.rect = pygame.Rect(0, 0, 40, 40)
         # Начинаем на самой нижней платформе
-        lowest_platform = max(platforms, key=lambda p: p.y)
-        self.rect.midbottom = lowest_platform.midtop
+        self.start_pos = start_platform.midtop[0] - 20, start_platform.midtop[1] - 40
+        self.rect.midbottom = start_platform.midtop
         self.vel_y = 0
         self.speed = 5
         self.jump_power = -15
         self.gravity = 0.8
         self.on_ground = True
         self.platforms = platforms  # Список всех платформ
+        self.main_platform = start_platform  # Основная платформа
 
     def handle_input(self, lasers):
         keys = pygame.key.get_pressed()
@@ -133,19 +134,31 @@ class Player:
                     self.rect.top = platform.bottom
                     self.vel_y = 0
 
+    def reset_if_fallen(self):
+        """Возвращает игрока в начальную позицию, если он упал ниже основной платформы"""
+        if self.rect.top > self.main_platform.bottom:
+            self.rect.topleft = self.start_pos
+            self.vel_y = 0
+            self.on_ground = False  # Установим на false, чтобы игрок не считался находящимся на земле сразу после телепортации
+
     def draw(self, surface):
         adjusted_rect = apply_camera(self.rect)
         pygame.draw.rect(surface, COLOR_PLAYER, adjusted_rect)
 
 def create_level():
     """Создает уровень с основной платформой и дополнительными платформами"""
-    # Основная платформа (расширена в 3 раза по ширине и в 10 раз по высоте)
-    main_platform_width = SCREEN_WIDTH * 3  # Расширена в 3 раза
+    # Основная платформа (расширена в 9 раз по ширине и в 10 раз по высоте)
+    main_platform_width = SCREEN_WIDTH * 9  # Расширена в 9 раз (в 3 раза больше предыдущей версии)
     main_platform_height = 50 * 10         # Расширена в 10 раз
     main_platform = pygame.Rect(-main_platform_width//3, SCREEN_HEIGHT - 50, main_platform_width, main_platform_height)
     
+    # Высокие бортики по краям основной платформы
+    wall_height = 300  # Высота бортиков
+    left_wall = pygame.Rect(main_platform.left, main_platform.top - wall_height, 20, wall_height)
+    right_wall = pygame.Rect(main_platform.right - 20, main_platform.top - wall_height, 20, wall_height)
+    
     # Дополнительные платформы
-    platforms = [main_platform]
+    platforms = [main_platform, left_wall, right_wall]
     
     # Платформы слева и справа от основной, на удобной высоте прыжка
     jump_height = 120  # Уменьшенная высота для более комфортного прыжка
@@ -167,14 +180,14 @@ def create_level():
     upper_right_platform = pygame.Rect(SCREEN_WIDTH, SCREEN_HEIGHT - 50 - jump_height*3, platform_width, platform_thickness)
     platforms.extend([upper_left_platform, upper_right_platform])
     
-    return platforms
+    return platforms, main_platform
 
 def main():
     # Создание уровня
-    platforms = create_level()
+    platforms, main_platform = create_level()
     
     # Создание игрока с передачей всех платформ
-    player = Player(platforms)
+    player = Player(platforms, main_platform)
     lasers = []
     # Создаем несколько врагов в разных позициях
     enemies = [
@@ -208,6 +221,7 @@ def main():
         # Логика игрока
         player.handle_input(lasers)
         player.apply_gravity()
+        player.reset_if_fallen()  # Проверяем, не упал ли игрок за пределы уровня
 
         # Логика лазеров
         for laser in lasers[:]:
