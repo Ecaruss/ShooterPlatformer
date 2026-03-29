@@ -6,6 +6,8 @@ import os
 # --- ИНИЦИАЛИЗАЦИЯ ---
 pygame.init()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Константы
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -21,7 +23,7 @@ COLOR_GEAR = (180, 180, 180)
 COLOR_TEXT = (255, 255, 255)
 COLOR_PORTAL = (138, 43, 226)
 
-SCORES_FILE = "highscores.json"
+SCORES_FILE = os.path.join(BASE_DIR, "highscores.json")
 MAX_NAME_LENGTH = 15
 MAX_SCORES = 100
 TOP_DISPLAY = 10
@@ -88,38 +90,43 @@ def get_player_place(scores: list, time_ms: int) -> int:
 
 
 def add_high_score(name: str, time_ms: int, score: int) -> tuple:
-    scores = load_high_scores()
-    
-    existing_idx = None
-    for i, s in enumerate(scores):
-        if s['name'] == name:
-            existing_idx = i
-            break
-    
-    if existing_idx is not None:
-        if time_ms >= scores[existing_idx]['time_ms']:
-            scores.sort(key=lambda x: x['time_ms'])
-            place = get_player_place(scores, time_ms)
-            return place, False
+    try:
+        scores = load_high_scores()
+        
+        existing_idx = None
+        for i, s in enumerate(scores):
+            if s['name'] == name:
+                existing_idx = i
+                break
+        
+        if existing_idx is not None:
+            if time_ms >= scores[existing_idx]['time_ms']:
+                scores.sort(key=lambda x: x['time_ms'])
+                place = get_player_place(scores, time_ms)
+                return place, False
+            else:
+                scores[existing_idx] = {'name': name, 'time_ms': time_ms, 'score': score}
+                was_updated = True
         else:
-            scores[existing_idx] = {'name': name, 'time_ms': time_ms, 'score': score}
+            scores.append({'name': name, 'time_ms': time_ms, 'score': score})
             was_updated = True
-    else:
-        scores.append({'name': name, 'time_ms': time_ms, 'score': score})
-        was_updated = True
-    
-    scores.sort(key=lambda x: x['time_ms'])
-    scores = scores[:MAX_SCORES]
-    
-    with open(SCORES_FILE, 'w', encoding='utf-8') as f:
-        json.dump({'scores': scores}, f, indent=2)
-    
-    place = get_player_place(scores, time_ms)
-    return place, was_updated
+        
+        scores.sort(key=lambda x: x['time_ms'])
+        scores = scores[:MAX_SCORES]
+        
+        with open(SCORES_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'scores': scores}, f, indent=2)
+        print(f"DEBUG: Saved high score to {SCORES_FILE}", flush=True)
+        
+        place = get_player_place(scores, time_ms)
+        return place, was_updated
+    except Exception as e:
+        print(f"ERROR saving high score: {e}", flush=True)
+        return 0, False
 
 
 def get_attempts_filename(name: str) -> str:
-    return f"attempts_{name}.json"
+    return os.path.join(BASE_DIR, f"attempts_{name}.json")
 
 
 def load_attempts(player_name: str) -> list:
@@ -134,15 +141,19 @@ def load_attempts(player_name: str) -> list:
 
 
 def save_attempt(player_name: str, time_ms: int, score: int):
-    attempts = load_attempts(player_name)
-    attempts.append({
-        'time_ms': time_ms,
-        'score': score
-    })
-    if len(attempts) > MAX_ATTEMPTS:
-        attempts = attempts[-MAX_ATTEMPTS:]
-    with open(get_attempts_filename(player_name), 'w', encoding='utf-8') as f:
-        json.dump(attempts, f)
+    try:
+        attempts = load_attempts(player_name)
+        attempts.append({
+            'time_ms': time_ms,
+            'score': score
+        })
+        if len(attempts) > MAX_ATTEMPTS:
+            attempts = attempts[-MAX_ATTEMPTS:]
+        with open(get_attempts_filename(player_name), 'w', encoding='utf-8') as f:
+            json.dump(attempts, f)
+        print(f"DEBUG: Saved attempt to {get_attempts_filename(player_name)}", flush=True)
+    except Exception as e:
+        print(f"ERROR saving attempt: {e}", flush=True)
 
 
 # --- ПОИСК ПУТИ ---
@@ -512,6 +523,7 @@ def main():
                         )
                         if btn_rect.collidepoint(mx, my):
                             if i == 0:  # START GAME
+                                platforms, player, portals, enemies, lasers, score, won = reset_level()
                                 game_state = GameState.COUNTDOWN
                                 countdown_start = pygame.time.get_ticks()
                             elif i == 1:  # HISTORY
@@ -540,11 +552,17 @@ def main():
                         countdown_start = pygame.time.get_ticks()
                     elif menu_btn.collidepoint(mx, my):
                         game_state = GameState.MENU
+                        won = False
             
             elif game_state == GameState.PLAYING and not won:
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mx, my = pygame.mouse.get_pos()
                     lasers.append(Laser(player.rect.centerx, player.rect.centery, mx-camera_offset.x, my-camera_offset.y))
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                    print("DEBUG: Space pressed - instant win!", flush=True)
+                    portals.clear()
+                    enemies.clear()
+                    print(f"DEBUG: After clear - portals={len(portals)}, enemies={len(enemies)}", flush=True)
 
         if game_state == GameState.INPUT:
             input_box = pygame.Rect(SCREEN_WIDTH//2 - 150, SCREEN_HEIGHT//2 - 20, 300, 40)
@@ -680,7 +698,7 @@ def main():
                 for l in lasers[:]:
                     l.update()
                     hit = False
-                    for p in portals:
+                    for p in portals[:]:
                         if l.rect.colliderect(p.rect):
                             p.hp -= 1
                             if p.hp <= 0: portals.remove(p)
@@ -694,12 +712,16 @@ def main():
                                 enemies.remove(e); hit = True; score += 1; break
                     if hit or l.distance > 1200: lasers.remove(l)
 
+            import sys
+            print(f"DEBUG: portals={len(portals)}, enemies={len(enemies)}, won={won}", flush=True)
             if len(portals) == 0 and len(enemies) == 0 and not won:
+                print("DEBUG: WIN CONDITION MET!", flush=True)
                 won = True
                 final_time_ms = pygame.time.get_ticks() - start_time
                 save_attempt(player_name, final_time_ms, score)
                 player_place, was_recorded = add_high_score(player_name, final_time_ms, score)
                 game_state = GameState.GAMEOVER
+                print(f"DEBUG: Game state changed to GAMEOVER", flush=True)
 
             for plat in platforms: pygame.draw.rect(screen, COLOR_PLATFORM, apply_camera(plat))
             for p in portals: p.draw(screen)
