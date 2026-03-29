@@ -92,15 +92,17 @@ class Enemy:
         pygame.draw.rect(surface, COLOR_ENEMY, adjusted_rect)
 
 class Player:
-    def __init__(self, platform_rect):
+    def __init__(self, platforms):
         self.rect = pygame.Rect(0, 0, 40, 40)
-        self.rect.midbottom = platform_rect.midtop
+        # Начинаем на самой нижней платформе
+        lowest_platform = max(platforms, key=lambda p: p.y)
+        self.rect.midbottom = lowest_platform.midtop
         self.vel_y = 0
         self.speed = 5
         self.jump_power = -15
         self.gravity = 0.8
         self.on_ground = True
-        self.platform_y = platform_rect.top
+        self.platforms = platforms  # Список всех платформ
 
     def handle_input(self, lasers):
         keys = pygame.key.get_pressed()
@@ -115,27 +117,66 @@ class Player:
     def apply_gravity(self):
         self.vel_y += self.gravity
         self.rect.y += self.vel_y
-        if self.rect.bottom >= self.platform_y:
-            self.rect.bottom = self.platform_y
-            self.vel_y = 0
-            self.on_ground = True
+        
+        # Проверяем столкновения со всеми платформами
+        self.on_ground = False
+        for platform in self.platforms:
+            if self.rect.colliderect(platform) and self.vel_y > 0:
+                if self.rect.bottom <= platform.y + 10 and self.rect.bottom >= platform.y:
+                    self.rect.bottom = platform.y
+                    self.vel_y = 0
+                    self.on_ground = True
 
     def draw(self, surface):
         adjusted_rect = apply_camera(self.rect)
         pygame.draw.rect(surface, COLOR_PLAYER, adjusted_rect)
 
+def create_level():
+    """Создает уровень с основной платформой и дополнительными платформами"""
+    # Основная платформа (расширена в 3 раза по ширине и в 10 раз по высоте)
+    main_platform_width = SCREEN_WIDTH * 3  # Расширена в 3 раза
+    main_platform_height = 50 * 10         # Расширена в 10 раз
+    main_platform = pygame.Rect(-main_platform_width//3, SCREEN_HEIGHT - 50, main_platform_width, main_platform_height)
+    
+    # Дополнительные платформы
+    platforms = [main_platform]
+    
+    # Платформы слева и справа от основной, на высоте прыжка
+    jump_height = 150  # Примерная высота, на которую может прыгнуть игрок
+    platform_width = 150
+    platform_thickness = 15
+    
+    # Левые платформы
+    left_platform_1 = pygame.Rect(-platform_width*2, SCREEN_HEIGHT - 50 - jump_height, platform_width, platform_thickness)
+    left_platform_2 = pygame.Rect(-platform_width*3.5, SCREEN_HEIGHT - 50 - jump_height*2, platform_width, platform_thickness)
+    platforms.extend([left_platform_1, left_platform_2])
+    
+    # Правые платформы
+    right_platform_1 = pygame.Rect(SCREEN_WIDTH, SCREEN_HEIGHT - 50 - jump_height, platform_width, platform_thickness)
+    right_platform_2 = pygame.Rect(SCREEN_WIDTH + platform_width*1.5, SCREEN_HEIGHT - 50 - jump_height*2, platform_width, platform_thickness)
+    platforms.extend([right_platform_1, right_platform_2])
+    
+    # Ещё один слой платформ над предыдущими
+    upper_left_platform = pygame.Rect(-platform_width*2, SCREEN_HEIGHT - 50 - jump_height*3, platform_width, platform_thickness)
+    upper_right_platform = pygame.Rect(SCREEN_WIDTH, SCREEN_HEIGHT - 50 - jump_height*3, platform_width, platform_thickness)
+    platforms.extend([upper_left_platform, upper_right_platform])
+    
+    return platforms
+
 def main():
-    # Создание объектов
-    platform = pygame.Rect(0, SCREEN_HEIGHT - 50, SCREEN_WIDTH, 50)
-    player = Player(platform)
+    # Создание уровня
+    platforms = create_level()
+    
+    # Создание игрока с передачей всех платформ
+    player = Player(platforms)
     lasers = []
     # Создаем несколько врагов в разных позициях
     enemies = [
-        Enemy(SCREEN_WIDTH + 100, platform.top - 40),
-        Enemy(SCREEN_WIDTH + 300, platform.top - 40),
-        Enemy(SCREEN_WIDTH + 500, platform.top - 40),
-        Enemy(SCREEN_WIDTH + 700, platform.top - 40),
-        Enemy(SCREEN_WIDTH + 900, platform.top - 40)
+        Enemy(platforms[0].centerx + 100, platforms[0].top - 40),
+        Enemy(platforms[0].centerx + 300, platforms[0].top - 40),
+        Enemy(platforms[0].centerx + 500, platforms[0].top - 40),
+        Enemy(platforms[0].centerx + 700, platforms[0].top - 40),
+        Enemy(SCREEN_WIDTH + 100, platforms[0].top - 40)
     ]
     gears = []
     score = 0
@@ -192,7 +233,8 @@ def main():
                 gears.remove(gear)
 
         # Отрисовка
-        pygame.draw.rect(screen, COLOR_PLATFORM, apply_camera(platform))
+        for platform in platforms:
+            pygame.draw.rect(screen, COLOR_PLATFORM, apply_camera(platform))
         player.draw(screen)
         for laser in lasers: 
             laser.draw(screen)
