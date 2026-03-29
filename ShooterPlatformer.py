@@ -121,11 +121,17 @@ class Player:
         # Проверяем столкновения со всеми платформами
         self.on_ground = False
         for platform in self.platforms:
-            if self.rect.colliderect(platform) and self.vel_y > 0:
-                if self.rect.bottom <= platform.y + 10 and self.rect.bottom >= platform.y:
-                    self.rect.bottom = platform.y
+            # Проверяем столкновение по оси Y (сверху или снизу)
+            if self.rect.colliderect(platform):
+                # Если двигаемся вниз (падаем) и сталкиваемся сверху платформы
+                if self.vel_y > 0 and self.rect.bottom <= platform.bottom and self.rect.bottom >= platform.top:
+                    self.rect.bottom = platform.top
                     self.vel_y = 0
                     self.on_ground = True
+                # Если двигаемся вверх (прыгаем) и сталкиваемся снизу платформы
+                elif self.vel_y < 0 and self.rect.top >= platform.top and self.rect.top <= platform.bottom:
+                    self.rect.top = platform.bottom
+                    self.vel_y = 0
 
     def draw(self, surface):
         adjusted_rect = apply_camera(self.rect)
@@ -141,8 +147,8 @@ def create_level():
     # Дополнительные платформы
     platforms = [main_platform]
     
-    # Платформы слева и справа от основной, на высоте прыжка
-    jump_height = 150  # Примерная высота, на которую может прыгнуть игрок
+    # Платформы слева и справа от основной, на удобной высоте прыжка
+    jump_height = 120  # Уменьшенная высота для более комфортного прыжка
     platform_width = 150
     platform_thickness = 15
     
@@ -156,7 +162,7 @@ def create_level():
     right_platform_2 = pygame.Rect(SCREEN_WIDTH + platform_width*1.5, SCREEN_HEIGHT - 50 - jump_height*2, platform_width, platform_thickness)
     platforms.extend([right_platform_1, right_platform_2])
     
-    # Ещё один слой платформ над предыдущими
+    # Ещё один слой платформ над предыдущими (еще ниже)
     upper_left_platform = pygame.Rect(-platform_width*2, SCREEN_HEIGHT - 50 - jump_height*3, platform_width, platform_thickness)
     upper_right_platform = pygame.Rect(SCREEN_WIDTH, SCREEN_HEIGHT - 50 - jump_height*3, platform_width, platform_thickness)
     platforms.extend([upper_left_platform, upper_right_platform])
