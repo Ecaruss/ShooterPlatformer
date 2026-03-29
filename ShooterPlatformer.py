@@ -116,44 +116,67 @@ class Player:
             self.on_ground = False
 
     def apply_gravity(self):
-        self.vel_y += self.gravity
         # Сохраняем начальное значение on_ground перед перемещением
         was_on_ground = self.on_ground
         self.on_ground = False
+        
+        # Применяем гравитацию
+        self.vel_y += self.gravity
         self.rect.y += self.vel_y
-
-        # Проверяем столкновения по оси X (до проверки по Y)
-        for platform in self.platforms:
-            if self.rect.colliderect(platform):
-                # Если двигаемся вправо и сталкиваемся с левой стороны платформы
-                if self.rect.right > platform.left and self.rect.left < platform.left and self.rect.x < platform.x:
-                    self.rect.right = platform.left
-                # Если двигаемся влево и сталкиваемся с правой стороны платформы
-                elif self.rect.left < platform.right and self.rect.right > platform.right and self.rect.x > platform.x:
-                    self.rect.left = platform.right
 
         # Проверяем столкновения по оси Y (сверху или снизу)
         for platform in self.platforms:
             if self.rect.colliderect(platform):
                 # Если двигаемся вниз (падаем) и сталкиваемся сверху платформы
-                if self.vel_y > 0 and self.rect.bottom <= platform.bottom and self.rect.bottom >= platform.top:
-                    self.rect.bottom = platform.top
-                    self.vel_y = 0
-                    self.on_ground = True
+                if self.vel_y > 0 and self.rect.bottom >= platform.top and self.rect.top < platform.top:
+                    # Проверяем, что игрок действительно находится над платформой по горизонтали
+                    if self.rect.right > platform.left and self.rect.left < platform.right:
+                        self.rect.bottom = platform.top
+                        self.vel_y = 0
+                        self.on_ground = True
                 # Если двигаемся вверх (прыгаем) и сталкиваемся снизу платформы
-                elif self.vel_y < 0 and self.rect.top >= platform.top and self.rect.top <= platform.bottom:
-                    self.rect.top = platform.bottom
-                    self.vel_y = 0
+                elif self.vel_y < 0 and self.rect.top <= platform.bottom and self.rect.bottom > platform.bottom:
+                    # Проверяем, что игрок действительно находится под платформой по горизонтали
+                    if self.rect.right > platform.left and self.rect.left < platform.right:
+                        self.rect.top = platform.bottom
+                        self.vel_y = 0
 
-        # Если игрок не касался земли до перемещения и после перемещения находится на земле, 
-        # убедиться, что он действительно на земле
-        if not was_on_ground and self.on_ground:
-            self.on_ground = True
+        # Сохраняем позицию до горизонтального движения
+        original_x = self.rect.x
+        
+        # Применяем горизонтальное движение с проверкой коллизий
+        keys = pygame.key.get_pressed()
+        horizontal_move = 0
+        if keys[pygame.K_a]:
+            horizontal_move = -self.speed
+        elif keys[pygame.K_d]:
+            horizontal_move = self.speed
+        
+        # Применяем горизонтальное движение
+        self.rect.x += horizontal_move
+        
+        # Проверяем столкновения по оси X
+        for platform in self.platforms:
+            if self.rect.colliderect(platform):
+                # Если двигаемся вправо и сталкиваемся с левой стороны платформы
+                if horizontal_move > 0 and self.rect.right > platform.left and self.rect.left < platform.left:
+                    self.rect.right = platform.left
+                # Если двигаемся влево и сталкиваемся с правой стороны платформы
+                elif horizontal_move < 0 and self.rect.left < platform.right and self.rect.right > platform.right:
+                    self.rect.left = platform.right
 
-        # Если игрок не касался земли до перемещения и после перемещения находится на земле, 
-        # убедиться, что он действительно на земле
-        if not was_on_ground and self.on_ground:
-            self.on_ground = True
+        # После горизонтального движения проверяем, остаемся ли мы на платформе
+        if was_on_ground and self.on_ground:
+            # Проверяем, не сошли ли мы с платформы
+            standing_on_platform = False
+            for platform in self.platforms:
+                if (self.rect.bottom == platform.top and 
+                    self.rect.right > platform.left and 
+                    self.rect.left < platform.right):
+                    standing_on_platform = True
+                    break
+            if not standing_on_platform:
+                self.on_ground = False
 
     def reset_if_fallen(self):
         """Возвращает игрока в начальную позицию, если он упал ниже основной платформы"""
@@ -242,7 +265,9 @@ def main():
         # Логика игрока
         player.handle_input(lasers)
         player.apply_gravity()
-        player.reset_if_fallen()  # Проверяем, не упал ли игрок за пределы уровня
+
+        # Проверяем, не упал ли игрок за пределы уровня
+        player.reset_if_fallen()
 
         # Логика лазеров
         for laser in lasers[:]:
