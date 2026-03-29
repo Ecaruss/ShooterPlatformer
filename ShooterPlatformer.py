@@ -98,7 +98,7 @@ class Player:
         self.start_pos = start_platform.midtop[0] - 20, start_platform.midtop[1] - 40
         self.rect.midbottom = start_platform.midtop
         self.vel_y = 0
-        self.speed = 5
+        self.speed = 2.5  # Уменьшена скорость в 2 раза
         self.jump_power = -15
         self.gravity = 0.8
         self.on_ground = True
@@ -191,38 +191,73 @@ class Player:
 
 def create_level():
     """Создает уровень с основной платформой и дополнительными платформами"""
-    # Основная платформа (расширена в 6 раз по ширине и в 10 раз по высоте)
+    # Основная платформа (пол) - уровень 0
     main_platform_width = SCREEN_WIDTH * 6  # Расширена в 6 раз
     main_platform_height = 50 * 10         # Расширена в 10 раз
     main_platform = pygame.Rect(-main_platform_width//2, SCREEN_HEIGHT - 50, main_platform_width, main_platform_height)
     
     # Высокие бортики по краям основной платформы
-    wall_height = 300  # Высота бортиков
+    wall_height = 600  # Увеличенная высота бортиков
     left_wall = pygame.Rect(main_platform.left, main_platform.top - wall_height, 20, wall_height)
     right_wall = pygame.Rect(main_platform.right - 20, main_platform.top - wall_height, 20, wall_height)
     
     # Дополнительные платформы
     platforms = [main_platform, left_wall, right_wall]
     
-    # Платформы слева и справа от основной, на удобной высоте прыжка
-    jump_height = 120  # Уменьшенная высота для более комфортного прыжка
-    platform_width = 150
+    # Параметры для уровней платформ
+    level_heights = [120, 240, 360]  # Высоты уровней 1, 2 и 3
     platform_thickness = 15
+    gap_size = 100  # Размер пропусков в платформах
     
-    # Левые платформы
-    left_platform_1 = pygame.Rect(-platform_width*2, SCREEN_HEIGHT - 50 - jump_height, platform_width, platform_thickness)
-    left_platform_2 = pygame.Rect(-platform_width*3.5, SCREEN_HEIGHT - 50 - jump_height*2, platform_width, platform_thickness)
-    platforms.extend([left_platform_1, left_platform_2])
-    
-    # Правые платформы
-    right_platform_1 = pygame.Rect(SCREEN_WIDTH, SCREEN_HEIGHT - 50 - jump_height, platform_width, platform_thickness)
-    right_platform_2 = pygame.Rect(SCREEN_WIDTH + platform_width*1.5, SCREEN_HEIGHT - 50 - jump_height*2, platform_width, platform_thickness)
-    platforms.extend([right_platform_1, right_platform_2])
-    
-    # Ещё один слой платформ над предыдущими (еще ниже)
-    upper_left_platform = pygame.Rect(-platform_width*2, SCREEN_HEIGHT - 50 - jump_height*3, platform_width, platform_thickness)
-    upper_right_platform = pygame.Rect(SCREEN_WIDTH, SCREEN_HEIGHT - 50 - jump_height*3, platform_width, platform_thickness)
-    platforms.extend([upper_left_platform, upper_right_platform])
+    for level_idx, height in enumerate(level_heights):
+        # Платформа уровня (расширенная до границ)
+        level_platform = pygame.Rect(
+            main_platform.left, 
+            SCREEN_HEIGHT - 50 - height, 
+            main_platform_width, 
+            platform_thickness
+        )
+        
+        # Добавляем пропуски в платформе в зависимости от уровня
+        # Уровень 1: пропуск посередине
+        # Уровень 2: пропуск слева
+        # Уровень 3: пропуск справа
+        if level_idx == 0:  # Уровень 1 - пропуск посередине
+            # Левая часть платформы
+            left_part = pygame.Rect(
+                level_platform.left, 
+                level_platform.top, 
+                (level_platform.width // 2) - (gap_size // 2), 
+                platform_thickness
+            )
+            # Правая часть платформы
+            right_part = pygame.Rect(
+                level_platform.left + (level_platform.width // 2) + (gap_size // 2), 
+                level_platform.top, 
+                (level_platform.width // 2) - (gap_size // 2), 
+                platform_thickness
+            )
+            platforms.extend([left_part, right_part])
+            
+        elif level_idx == 1:  # Уровень 2 - пропуск слева
+            # Правая часть платформы
+            right_part = pygame.Rect(
+                level_platform.left + gap_size, 
+                level_platform.top, 
+                level_platform.width - gap_size, 
+                platform_thickness
+            )
+            platforms.append(right_part)
+            
+        elif level_idx == 2:  # Уровень 3 - пропуск справа
+            # Левая часть платформы
+            left_part = pygame.Rect(
+                level_platform.left, 
+                level_platform.top, 
+                level_platform.width - gap_size, 
+                platform_thickness
+            )
+            platforms.append(left_part)
     
     return platforms, main_platform
 
@@ -238,7 +273,6 @@ def main():
         Enemy(platforms[0].centerx + 100, platforms[0].top - 40),
         Enemy(platforms[0].centerx + 300, platforms[0].top - 40),
         Enemy(platforms[0].centerx + 500, platforms[0].top - 40),
-        Enemy(platforms[0].centerx + 700, platforms[0].top - 40),
         Enemy(SCREEN_WIDTH + 100, platforms[0].top - 40)
     ]
     gears = []
