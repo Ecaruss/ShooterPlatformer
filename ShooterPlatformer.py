@@ -24,6 +24,28 @@ pygame.display.set_caption("Pygame-ce Platformer Shooter")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 24)
 
+# Переменная камеры
+camera_offset = pygame.Vector2(0, 0)
+
+def update_camera(player_pos):
+    """Обновляет смещение камеры, следуя за игроком"""
+    global camera_offset
+    target_x = -player_pos.x + SCREEN_WIDTH // 2
+    target_y = -player_pos.y + SCREEN_HEIGHT // 2
+    
+    # Плавное движение камеры
+    camera_offset.x += (target_x - camera_offset.x) * 0.1
+    camera_offset.y += (target_y - camera_offset.y) * 0.1
+
+def apply_camera(rect):
+    """Применяет смещение камеры к прямоугольнику"""
+    return pygame.Rect(
+        rect.x + camera_offset.x,
+        rect.y + camera_offset.y,
+        rect.width,
+        rect.height
+    )
+
 class Laser:
     def __init__(self, x, y, target_x, target_y):
         self.pos = pygame.Vector2(x, y)
@@ -42,14 +64,17 @@ class Laser:
         self.distance_traveled += self.velocity.length()
 
     def draw(self, surface):
-        pygame.draw.rect(surface, COLOR_LASER, self.rect)
+        adjusted_rect = apply_camera(self.rect)
+        pygame.draw.rect(surface, COLOR_LASER, adjusted_rect)
 
 class Gear:
     def __init__(self, x, y):
         self.rect = pygame.Rect(x - 10, y - 10, 20, 20)
 
     def draw(self, surface):
-        pygame.draw.circle(surface, COLOR_GEAR, self.rect.center, 10)
+        center_x = self.rect.centerx + camera_offset.x
+        center_y = self.rect.centery + camera_offset.y
+        pygame.draw.circle(surface, COLOR_GEAR, (int(center_x), int(center_y)), 10)
 
 class Enemy:
     def __init__(self, x, y):
@@ -63,7 +88,8 @@ class Enemy:
             self.rect.x += self.speed
 
     def draw(self, surface):
-        pygame.draw.rect(surface, COLOR_ENEMY, self.rect)
+        adjusted_rect = apply_camera(self.rect)
+        pygame.draw.rect(surface, COLOR_ENEMY, adjusted_rect)
 
 class Player:
     def __init__(self, platform_rect):
@@ -95,14 +121,22 @@ class Player:
             self.on_ground = True
 
     def draw(self, surface):
-        pygame.draw.rect(surface, COLOR_PLAYER, self.rect)
+        adjusted_rect = apply_camera(self.rect)
+        pygame.draw.rect(surface, COLOR_PLAYER, adjusted_rect)
 
 def main():
     # Создание объектов
     platform = pygame.Rect(0, SCREEN_HEIGHT - 50, SCREEN_WIDTH, 50)
     player = Player(platform)
     lasers = []
-    enemies = [Enemy(SCREEN_WIDTH - 50, platform.top - 40)]
+    # Создаем несколько врагов в разных позициях
+    enemies = [
+        Enemy(SCREEN_WIDTH + 100, platform.top - 40),
+        Enemy(SCREEN_WIDTH + 300, platform.top - 40),
+        Enemy(SCREEN_WIDTH + 500, platform.top - 40),
+        Enemy(SCREEN_WIDTH + 700, platform.top - 40),
+        Enemy(SCREEN_WIDTH + 900, platform.top - 40)
+    ]
     gears = []
     score = 0
 
@@ -116,7 +150,13 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1: # ЛКМ
                     mx, my = pygame.mouse.get_pos()
-                    lasers.append(Laser(player.rect.centerx, player.rect.centery, mx, my))
+                    # Корректируем позицию мыши с учетом камеры
+                    corrected_mx = mx - camera_offset.x
+                    corrected_my = my - camera_offset.y
+                    lasers.append(Laser(player.rect.centerx, player.rect.centery, corrected_mx, corrected_my))
+
+        # Обновление камеры
+        update_camera(pygame.Vector2(player.rect.centerx, player.rect.centery))
 
         # Логика игрока
         player.handle_input(lasers)
@@ -135,9 +175,8 @@ def main():
                 if laser.rect.colliderect(enemy.rect):
                     gears.append(Gear(enemy.rect.centerx, enemy.rect.centery))
                     enemies.remove(enemy)
+                    score += 1  # Увеличиваем счет при уничтожении врага
                     hit = True
-                    # Спавн нового врага для бесконечной игры
-                    enemies.append(Enemy(SCREEN_WIDTH + 50, platform.top - 40))
                     break
             if hit:
                 lasers.remove(laser)
@@ -153,11 +192,14 @@ def main():
                 gears.remove(gear)
 
         # Отрисовка
-        pygame.draw.rect(screen, COLOR_PLATFORM, platform)
+        pygame.draw.rect(screen, COLOR_PLATFORM, apply_camera(platform))
         player.draw(screen)
-        for laser in lasers: laser.draw(screen)
-        for enemy in enemies: enemy.draw(screen)
-        for gear in gears: gear.draw(screen)
+        for laser in lasers: 
+            laser.draw(screen)
+        for enemy in enemies: 
+            enemy.draw(screen)
+        for gear in gears: 
+            gear.draw(screen)
 
         # Интерфейс
         score_text = font.render(f"{score:03}", True, COLOR_TEXT)
